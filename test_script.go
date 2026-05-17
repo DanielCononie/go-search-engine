@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/DanielCononie/go-search-engine.git/go-search-engine/internal/crawler"
 	"github.com/DanielCononie/go-search-engine.git/go-search-engine/pkg/text"
 )
 
@@ -12,5 +13,11 @@ func TestPipeline() {
 }
 
 func main() {
-	TestPipeline()
+	res, err := crawler.FetchURL("https://en.wikipedia.org/wiki/Hulk")
+
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	fmt.Println(res)
 }
