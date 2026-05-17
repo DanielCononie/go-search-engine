@@ -1,6 +1,8 @@
 package crawler
 
 import (
+	"fmt"
+
 	"github.com/DanielCononie/go-search-engine.git/go-search-engine/internal/models"
 )
 
@@ -18,5 +20,6 @@ func FetchURL(url string) (models.FetchResult, error) {
 }
 
 func FetchURLs(urls []string) []models.FetchResult {
+	fmt.Print(urls)
 	return []models.FetchResult{}
 }
