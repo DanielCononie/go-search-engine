@@ -9,15 +9,21 @@ import (
 
 func TestPipeline() {
 	word := "The BIG brown cat JuMps over the lazy dog but it likes to eat fish"
-	fmt.Println(len(text.ProcessQuestionText(word)))
+	fmt.Println(len(text.ProcessText(word)))
 }
 
 func main() {
-	res, err := crawler.FetchURL("https://en.wikipedia.org/wiki/Hulk")
 
-	if err != nil {
-		fmt.Println(err)
+	sites := []string{
+		"https://en.wikipedia.org/wiki/Hulk",
+		"https://en.wikipedia.org/wiki/Iron_Man",
 	}
 
-	fmt.Println(res)
+	res := crawler.FetchURLs(sites)
+
+	// if err != nil {
+	// 	fmt.Println(err)
+	// }
+
+	fmt.Println(len(res))
 }

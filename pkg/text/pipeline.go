@@ -1,6 +1,6 @@
 package text
 
-func ProcessQuestionText(question string) []string {
+func ProcessText(question string) []string {
 
 	question = Lowercase(question)
 	question = RemovePunctuation(question)
