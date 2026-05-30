@@ -17,7 +17,7 @@ func RankPages(queryTokens []string, pages []models.Page) []models.SearchResult 
 	}
 
 	results := []models.SearchResult{}
-	// construct search result, then sort by score (future state possibly insert effectively to avoid sorting)
+
 	for _, page := range pages {
 
 		score := 0
