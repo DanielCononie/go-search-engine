@@ -37,18 +37,25 @@ type Request struct {
 }
 
 type Response struct {
-	Version    string                `json:"version"`
-	Query      string                `json:"query"`
-	Mode       Mode                  `json:"mode"`
-	UsedMode   Mode                  `json:"used_mode"`
-	TookMS     int64                 `json:"took_ms"`
-	NextOffset *int                  `json:"next_offset"`
-	Results    []models.SearchResult `json:"results"`
+	Version     string                `json:"version"`
+	Query       string                `json:"query"`
+	Mode        Mode                  `json:"mode"`
+	UsedMode    Mode                  `json:"used_mode"`
+	TookMS      int64                 `json:"took_ms"`
+	NextOffset  *int                  `json:"next_offset"`
+	Suggestions []SpellingSuggestion  `json:"suggestions,omitempty"`
+	Results     []models.SearchResult `json:"results"`
+}
+
+type SpellingSuggestion struct {
+	Term       string   `json:"term"`
+	Candidates []string `json:"candidates"`
 }
 
 type ResultPage struct {
-	Results []models.SearchResult
-	Total   int
+	Results     []models.SearchResult
+	Total       int
+	Suggestions []SpellingSuggestion
 }
 
 type Backend interface {
@@ -105,13 +112,14 @@ func (s *Service) Search(ctx context.Context, request Request) (Response, error)
 	}
 
 	return Response{
-		Version:    ContractVersion,
-		Query:      request.Query,
-		Mode:       request.Mode,
-		UsedMode:   request.Mode,
-		TookMS:     time.Since(startedAt).Milliseconds(),
-		NextOffset: nextOffset,
-		Results:    page.Results,
+		Version:     ContractVersion,
+		Query:       request.Query,
+		Mode:        request.Mode,
+		UsedMode:    request.Mode,
+		TookMS:      time.Since(startedAt).Milliseconds(),
+		NextOffset:  nextOffset,
+		Suggestions: page.Suggestions,
+		Results:     page.Results,
 	}, nil
 }
 

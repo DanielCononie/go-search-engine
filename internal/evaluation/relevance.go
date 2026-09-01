@@ -19,16 +19,22 @@ type QueryMeasurement struct {
 	Query          string                `json:"query"`
 	RecallAt10     float64               `json:"recall_at_10"`
 	ReciprocalRank float64               `json:"reciprocal_rank"`
+	NDCGAt10       float64               `json:"ndcg_at_10"`
 	TookMS         float64               `json:"took_ms"`
 	Results        []models.SearchResult `json:"results"`
 }
 
 type Report struct {
 	GeneratedAt    time.Time          `json:"generated_at"`
+	Backend        string             `json:"backend,omitempty"`
+	IndexAlias     string             `json:"index_alias,omitempty"`
+	PhysicalIndex  string             `json:"physical_index,omitempty"`
+	CorpusVersion  string             `json:"corpus_version,omitempty"`
 	IndexingMS     float64            `json:"indexing_ms"`
 	QueryCount     int                `json:"query_count"`
 	RecallAt10     float64            `json:"recall_at_10"`
 	MeanReciprocal float64            `json:"mean_reciprocal_rank"`
+	NDCGAt10       float64            `json:"ndcg_at_10"`
 	ZeroResultRate float64            `json:"zero_result_rate"`
 	P50LatencyMS   float64            `json:"p50_latency_ms"`
 	P95LatencyMS   float64            `json:"p95_latency_ms"`
@@ -68,17 +74,22 @@ func BuildReport(
 	zeroResultCount := 0
 	for queryIndex, judgment := range judgments {
 		queryResults := results[queryIndex]
-		recall, reciprocalRank := relevanceMetrics(judgment.RelevantURLs, queryResults)
+		recall, reciprocalRank, ndcg := relevanceMetrics(
+			judgment.RelevantURLs,
+			queryResults,
+		)
 		if len(queryResults) == 0 {
 			zeroResultCount++
 		}
 
 		report.RecallAt10 += recall
 		report.MeanReciprocal += reciprocalRank
+		report.NDCGAt10 += ndcg
 		report.Queries = append(report.Queries, QueryMeasurement{
 			Query:          judgment.Query,
 			RecallAt10:     recall,
 			ReciprocalRank: reciprocalRank,
+			NDCGAt10:       ndcg,
 			TookMS:         milliseconds(latencies[queryIndex]),
 			Results:        queryResults,
 		})
@@ -87,6 +98,7 @@ func BuildReport(
 	queryCount := float64(len(judgments))
 	report.RecallAt10 /= queryCount
 	report.MeanReciprocal /= queryCount
+	report.NDCGAt10 /= queryCount
 	report.ZeroResultRate = float64(zeroResultCount) / queryCount
 	report.P50LatencyMS = milliseconds(percentile(sortedLatencies, 0.50))
 	report.P95LatencyMS = milliseconds(percentile(sortedLatencies, 0.95))
@@ -94,7 +106,10 @@ func BuildReport(
 	return report, nil
 }
 
-func relevanceMetrics(relevantURLs []string, results []models.SearchResult) (float64, float64) {
+func relevanceMetrics(
+	relevantURLs []string,
+	results []models.SearchResult,
+) (float64, float64, float64) {
 	relevant := make(map[string]struct{}, len(relevantURLs))
 	for _, url := range relevantURLs {
 		relevant[url] = struct{}{}
@@ -102,21 +117,32 @@ func relevanceMetrics(relevantURLs []string, results []models.SearchResult) (flo
 
 	hits := 0
 	reciprocalRank := 0.0
+	dcg := 0.0
 	for resultIndex, result := range results {
+		if resultIndex >= 10 {
+			break
+		}
 		if _, ok := relevant[result.URL]; !ok {
 			continue
 		}
 
 		hits++
+		dcg += 1 / math.Log2(float64(resultIndex+2))
 		if reciprocalRank == 0 {
 			reciprocalRank = 1 / float64(resultIndex+1)
 		}
 	}
 	if len(relevant) == 0 {
-		return 0, reciprocalRank
+		return 0, reciprocalRank, 0
 	}
 
-	return float64(hits) / float64(len(relevant)), reciprocalRank
+	idealHits := min(len(relevant), 10)
+	idcg := 0.0
+	for index := 0; index < idealHits; index++ {
+		idcg += 1 / math.Log2(float64(index+2))
+	}
+
+	return float64(hits) / float64(len(relevant)), reciprocalRank, dcg / idcg
 }
 
 func percentile(sorted []time.Duration, quantile float64) time.Duration {

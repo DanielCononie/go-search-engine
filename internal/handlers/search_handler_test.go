@@ -65,7 +65,14 @@ func TestSearchHandlerContract(t *testing.T) {
 }
 
 func TestSearchHandlerReturnsEmptyResults(t *testing.T) {
-	service := search.NewService(stubSearchBackend{})
+	service := search.NewService(stubSearchBackend{
+		page: search.ResultPage{
+			Suggestions: []search.SpellingSuggestion{{
+				Term:       "unkown",
+				Candidates: []string{"unknown"},
+			}},
+		},
+	})
 	app := fiber.New()
 	app.Get("/search", NewSearchHandler(service).Search)
 
@@ -83,6 +90,10 @@ func TestSearchHandlerReturnsEmptyResults(t *testing.T) {
 	}
 	if body.Results == nil || len(body.Results) != 0 {
 		t.Fatalf("results = %#v, want an empty array", body.Results)
+	}
+	if len(body.Suggestions) != 1 ||
+		body.Suggestions[0].Candidates[0] != "unknown" {
+		t.Fatalf("suggestions = %#v", body.Suggestions)
 	}
 }
 

@@ -221,6 +221,15 @@ func TestIndexManagerIntegration(t *testing.T) {
 	if err := manager.Check(ctx); err != nil {
 		t.Fatal(err)
 	}
+	diagnostics, err := manager.Diagnostics(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diagnostics.Alias != indexAlias ||
+		diagnostics.PhysicalIndex != indexName ||
+		diagnostics.IndexedSections != 0 {
+		t.Fatalf("index diagnostics = %#v", diagnostics)
+	}
 }
 
 func TestSearchBackendIntegration(t *testing.T) {
@@ -309,6 +318,13 @@ func TestSearchBackendIntegration(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+	corpus, err := repository.CorpusDiagnostics(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if corpus.Pages != 2 || corpus.ExpectedSections != 2 || corpus.Version == "" {
+		t.Fatalf("corpus diagnostics = %#v", corpus)
+	}
 
 	backend := newSearchBackend(client, aliasName)
 	exact := waitForSearchResults(t, ctx, backend, searchdomain.Request{
@@ -329,6 +345,20 @@ func TestSearchBackendIntegration(t *testing.T) {
 	}
 	if filtered.Total != 1 || filtered.Results[0].PageID != "page-two" {
 		t.Fatalf("filtered results = %#v", filtered)
+	}
+
+	misspelled, err := backend.Search(ctx, searchdomain.Request{
+		Query: "cosmicartifactkeywrd",
+		Limit: 10,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if misspelled.Total != 0 ||
+		len(misspelled.Suggestions) != 1 ||
+		len(misspelled.Suggestions[0].Candidates) == 0 ||
+		misspelled.Suggestions[0].Candidates[0] != "cosmicartifactkeyword" {
+		t.Fatalf("misspelled results = %#v", misspelled)
 	}
 
 	secondPage, err := backend.Search(ctx, searchdomain.Request{

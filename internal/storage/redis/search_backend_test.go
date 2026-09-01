@@ -74,6 +74,29 @@ func TestSearchSnippetCentersOnMatchingText(t *testing.T) {
 	}
 }
 
+func TestMapSpellingSuggestionsCapsAndDeduplicatesCandidates(t *testing.T) {
+	suggestions := mapSpellingSuggestions([]goredis.SpellCheckResult{{
+		Term: "spidr",
+		Suggestions: []goredis.SpellCheckSuggestion{
+			{Suggestion: "spider"},
+			{Suggestion: "spider"},
+			{Suggestion: "spire"},
+			{Suggestion: "spied"},
+			{Suggestion: "spade"},
+		},
+	}})
+
+	if len(suggestions) != 1 {
+		t.Fatalf("suggestions = %#v", suggestions)
+	}
+	if got := suggestions[0].Candidates; len(got) != 3 ||
+		got[0] != "spider" ||
+		got[1] != "spire" ||
+		got[2] != "spied" {
+		t.Fatalf("candidates = %#v", got)
+	}
+}
+
 func searchDocument(
 	id string,
 	score float64,

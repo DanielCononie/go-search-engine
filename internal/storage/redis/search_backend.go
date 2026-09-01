@@ -16,6 +16,7 @@ import (
 const (
 	maxSectionHits        = 1000
 	maxSectionsPerResult  = 3
+	maxSuggestionsPerTerm = 3
 	snippetLength         = 240
 	additionalSectionRate = 0.05
 	maxSectionBonusRate   = 0.25
@@ -84,11 +85,79 @@ func (b *SearchBackend) Search(
 	total := len(results)
 	start := min(request.Offset, total)
 	end := min(start+request.Limit, total)
+	var suggestions []search.SpellingSuggestion
+	if total == 0 {
+		suggestions, err = b.spellingSuggestions(ctx, request.Query)
+		if err != nil {
+			return search.ResultPage{}, err
+		}
+	}
 
 	return search.ResultPage{
-		Results: results[start:end],
-		Total:   total,
+		Results:     results[start:end],
+		Total:       total,
+		Suggestions: suggestions,
 	}, nil
+}
+
+func (b *SearchBackend) spellingSuggestions(
+	ctx context.Context,
+	query string,
+) ([]search.SpellingSuggestion, error) {
+	compiledQuery, err := search.CompileLexicalQuery(query, "", "")
+	if err != nil {
+		return nil, err
+	}
+
+	results, err := b.client.FTSpellCheckWithArgs(
+		ctx,
+		b.indexAlias,
+		compiledQuery,
+		&goredis.FTSpellCheckOptions{
+			Distance: 1,
+			Dialect:  2,
+		},
+	).Result()
+	if err != nil {
+		return nil, fmt.Errorf("spellcheck Redis query: %w", err)
+	}
+
+	return mapSpellingSuggestions(results), nil
+}
+
+func mapSpellingSuggestions(
+	results []goredis.SpellCheckResult,
+) []search.SpellingSuggestion {
+	suggestions := make([]search.SpellingSuggestion, 0, len(results))
+	for _, result := range results {
+		candidates := make([]string, 0, min(
+			len(result.Suggestions),
+			maxSuggestionsPerTerm,
+		))
+		seen := make(map[string]struct{}, len(result.Suggestions))
+		for _, candidate := range result.Suggestions {
+			if candidate.Suggestion == "" {
+				continue
+			}
+			if _, ok := seen[candidate.Suggestion]; ok {
+				continue
+			}
+			seen[candidate.Suggestion] = struct{}{}
+			candidates = append(candidates, candidate.Suggestion)
+			if len(candidates) == maxSuggestionsPerTerm {
+				break
+			}
+		}
+		if len(candidates) == 0 {
+			continue
+		}
+		suggestions = append(suggestions, search.SpellingSuggestion{
+			Term:       result.Term,
+			Candidates: candidates,
+		})
+	}
+
+	return suggestions
 }
 
 func groupSearchDocuments(

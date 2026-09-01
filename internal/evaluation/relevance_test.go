@@ -34,6 +34,9 @@ func TestBuildReport(t *testing.T) {
 	if report.MeanReciprocal != 0.25 {
 		t.Fatalf("MRR = %f, want 0.25", report.MeanReciprocal)
 	}
+	if report.NDCGAt10 < 0.193 || report.NDCGAt10 > 0.194 {
+		t.Fatalf("nDCG@10 = %f, want approximately 0.1934", report.NDCGAt10)
+	}
 	if report.ZeroResultRate != 0.5 {
 		t.Fatalf("zero-result rate = %f, want 0.5", report.ZeroResultRate)
 	}
@@ -43,6 +46,25 @@ func TestBuildReport(t *testing.T) {
 			report.P50LatencyMS,
 			report.P95LatencyMS,
 		)
+	}
+}
+
+func TestBuildReportLimitsRankingMetricsToTenResults(t *testing.T) {
+	results := make([]models.SearchResult, 11)
+	results[10].URL = "relevant"
+
+	report, err := BuildReport(
+		time.Now(),
+		0,
+		[]Judgment{{Query: "example", RelevantURLs: []string{"relevant"}}},
+		[][]models.SearchResult{results},
+		[]time.Duration{time.Millisecond},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.RecallAt10 != 0 || report.MeanReciprocal != 0 || report.NDCGAt10 != 0 {
+		t.Fatalf("metrics must ignore results after rank 10: %#v", report)
 	}
 }
 

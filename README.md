@@ -11,6 +11,7 @@ A Go/Fiber search-engine project that indexes web pages as sections in Redis and
 - `internal/search` defines the versioned lexical search contract and validates user queries.
 - `internal/storage/redis` stores page and section JSON documents and executes weighted Redis Search queries.
 - `internal/handlers` exposes search and health endpoints through Fiber.
+- `cmd/search-diagnostics` reports the active physical index, schema version, indexing health, corpus version, and section-count consistency.
 
 Redis is the durable source of truth. Crawling and indexing are intentionally separate from API startup.
 
@@ -72,6 +73,27 @@ go run ./cmd/relevance
 ```
 
 The captured Phase 0 report is stored in `docs/relevance-baseline.json`.
+
+Evaluate the current Redis lexical backend against the same judgments:
+
+```bash
+go run ./cmd/relevance -backend redis
+```
+
+The report includes Recall@10, MRR, nDCG@10, zero-result rate, p50/p95
+latency, the backend name, and the active index alias. Compare this output
+with the retained Phase 0 baseline before changing field weights or ranking.
+
+Inspect the live index and corpus before or after indexing:
+
+```bash
+go run ./cmd/search-diagnostics
+```
+
+`in_sync` is true when indexing is idle, Redis reports no indexing failures,
+and the indexed section count matches the sections referenced by all durable
+page records. The corpus version is derived from sorted page IDs and content
+hashes, so it changes only when the searchable page content changes.
 
 Redis integration tests are skipped by default. To run them against a disposable Redis instance that includes Search and JSON:
 

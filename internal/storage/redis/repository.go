@@ -2,9 +2,11 @@ package redis
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sort"
 
 	"github.com/DanielCononie/go-search-engine.git/go-search-engine/internal/documents"
 	"github.com/DanielCononie/go-search-engine.git/go-search-engine/internal/storage"
@@ -93,6 +95,13 @@ type Repository struct {
 	pagePrefix         string
 	sectionPrefix      string
 	crawlFailurePrefix string
+}
+
+type CorpusDiagnostics struct {
+	Version              string `json:"version"`
+	Pages                int    `json:"pages"`
+	ExpectedSections     int    `json:"expected_sections"`
+	LatestCrawlTimestamp int64  `json:"latest_crawl_timestamp"`
 }
 
 var _ storage.PageRepository = (*Repository)(nil)
@@ -213,6 +222,34 @@ func (r *Repository) SaveCrawlFailure(
 	return r.saveJSON(ctx, r.crawlFailurePrefix+failure.PageID, failure)
 }
 
+func (r *Repository) CorpusDiagnostics(
+	ctx context.Context,
+) (CorpusDiagnostics, error) {
+	keys, err := r.scanKeys(ctx, r.pagePrefix+"*")
+	if err != nil {
+		return CorpusDiagnostics{}, err
+	}
+
+	versions := make([]string, 0, len(keys))
+	diagnostics := CorpusDiagnostics{Pages: len(keys)}
+	for _, key := range keys {
+		var page documents.Page
+		if err := r.loadJSON(ctx, key, &page); err != nil {
+			return CorpusDiagnostics{}, err
+		}
+		diagnostics.ExpectedSections += len(page.SectionIDs)
+		diagnostics.LatestCrawlTimestamp = max(
+			diagnostics.LatestCrawlTimestamp,
+			page.CrawledAt,
+		)
+		versions = append(versions, page.ID+":"+page.ContentHash)
+	}
+	sort.Strings(versions)
+	diagnostics.Version = corpusVersion(versions)
+
+	return diagnostics, nil
+}
+
 func (r *Repository) SaveSection(ctx context.Context, section documents.Section) error {
 	if section.ID == "" {
 		return errors.New("section ID is required")
@@ -276,4 +313,28 @@ func (r *Repository) loadJSON(ctx context.Context, key string, destination any) 
 	}
 
 	return nil
+}
+
+func (r *Repository) scanKeys(ctx context.Context, pattern string) ([]string, error) {
+	keys := make([]string, 0)
+	iterator := r.client.Scan(ctx, 0, pattern, 100).Iterator()
+	for iterator.Next(ctx) {
+		keys = append(keys, iterator.Val())
+	}
+	if err := iterator.Err(); err != nil {
+		return nil, fmt.Errorf("scan Redis keys matching %s: %w", pattern, err)
+	}
+	sort.Strings(keys)
+
+	return keys, nil
+}
+
+func corpusVersion(pageVersions []string) string {
+	hash := sha256.New()
+	for _, version := range pageVersions {
+		_, _ = hash.Write([]byte(version))
+		_, _ = hash.Write([]byte{0})
+	}
+
+	return fmt.Sprintf("sha256:%x", hash.Sum(nil))
 }

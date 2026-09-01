@@ -24,6 +24,10 @@ func TestServiceSearchUsesLexicalDefaults(t *testing.T) {
 		page: ResultPage{
 			Results: []models.SearchResult{{URL: "https://example.com", Score: 1}},
 			Total:   2,
+			Suggestions: []SpellingSuggestion{{
+				Term:       "exmple",
+				Candidates: []string{"example"},
+			}},
 		},
 	})
 
@@ -40,6 +44,10 @@ func TestServiceSearchUsesLexicalDefaults(t *testing.T) {
 	}
 	if response.NextOffset == nil || *response.NextOffset != 1 {
 		t.Fatalf("next offset = %v, want 1", response.NextOffset)
+	}
+	if len(response.Suggestions) != 1 ||
+		response.Suggestions[0].Candidates[0] != "example" {
+		t.Fatalf("suggestions = %#v", response.Suggestions)
 	}
 }
 
