@@ -1,0 +1,348 @@
+{
+  "generated_at": "2026-09-01T03:27:34.792576727Z",
+  "indexing_ms": 404.159,
+  "query_count": 7,
+  "recall_at_10": 1,
+  "mean_reciprocal_rank": 0.9047619047619048,
+  "zero_result_rate": 0,
+  "p50_latency_ms": 2.313,
+  "p95_latency_ms": 2.37,
+  "queries": [
+    {
+      "query": "iron man armor",
+      "recall_at_10": 1,
+      "reciprocal_rank": 1,
+      "took_ms": 2.347,
+      "results": [
+        {
+          "url": "https://en.wikipedia.org/wiki/Iron_Man",
+          "title": "Iron Man - Wikipedia",
+          "score": 1370
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Hulk",
+          "title": "Hulk - Wikipedia",
+          "score": 204
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Spider-Man",
+          "title": "Spider-Man - Wikipedia",
+          "score": 194
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Avengers:_Age_of_Ultron",
+          "title": "Avengers: Age of Ultron - Wikipedia",
+          "score": 143
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Scarlet_Witch",
+          "title": "Scarlet Witch - Wikipedia",
+          "score": 139
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Avengers:_Endgame",
+          "title": "Avengers: Endgame - Wikipedia",
+          "score": 98
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Avengers:_Infinity_War",
+          "title": "Avengers: Infinity War - Wikipedia",
+          "score": 93
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Thanos",
+          "title": "Thanos - Wikipedia",
+          "score": 74
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Peter_Quill_(Marvel_Cinematic_Universe)",
+          "title": "Peter Quill (Marvel Cinematic Universe) - Wikipedia",
+          "score": 44
+        }
+      ]
+    },
+    {
+      "query": "\"infinity stones\"",
+      "recall_at_10": 1,
+      "reciprocal_rank": 1,
+      "took_ms": 0.452,
+      "results": [
+        {
+          "url": "https://en.wikipedia.org/wiki/Avengers:_Infinity_War",
+          "title": "Avengers: Infinity War - Wikipedia",
+          "score": 21
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Thanos",
+          "title": "Thanos - Wikipedia",
+          "score": 12
+        }
+      ]
+    },
+    {
+      "query": "who created ultron",
+      "recall_at_10": 1,
+      "reciprocal_rank": 1,
+      "took_ms": 2.37,
+      "results": [
+        {
+          "url": "https://en.wikipedia.org/wiki/Avengers:_Age_of_Ultron",
+          "title": "Avengers: Age of Ultron - Wikipedia",
+          "score": 436
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Scarlet_Witch",
+          "title": "Scarlet Witch - Wikipedia",
+          "score": 192
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Spider-Man",
+          "title": "Spider-Man - Wikipedia",
+          "score": 143
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Iron_Man",
+          "title": "Iron Man - Wikipedia",
+          "score": 103
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Avengers:_Infinity_War",
+          "title": "Avengers: Infinity War - Wikipedia",
+          "score": 85
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Hulk",
+          "title": "Hulk - Wikipedia",
+          "score": 79
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Avengers:_Endgame",
+          "title": "Avengers: Endgame - Wikipedia",
+          "score": 73
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Thanos",
+          "title": "Thanos - Wikipedia",
+          "score": 55
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Peter_Quill_(Marvel_Cinematic_Universe)",
+          "title": "Peter Quill (Marvel Cinematic Universe) - Wikipedia",
+          "score": 49
+        }
+      ]
+    },
+    {
+      "query": "scarlet witch powers",
+      "recall_at_10": 1,
+      "reciprocal_rank": 1,
+      "took_ms": 2.312,
+      "results": [
+        {
+          "url": "https://en.wikipedia.org/wiki/Scarlet_Witch",
+          "title": "Scarlet Witch - Wikipedia",
+          "score": 579
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Avengers:_Age_of_Ultron",
+          "title": "Avengers: Age of Ultron - Wikipedia",
+          "score": 56
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Spider-Man",
+          "title": "Spider-Man - Wikipedia",
+          "score": 53
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Thanos",
+          "title": "Thanos - Wikipedia",
+          "score": 28
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Hulk",
+          "title": "Hulk - Wikipedia",
+          "score": 26
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Iron_Man",
+          "title": "Iron Man - Wikipedia",
+          "score": 25
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Peter_Quill_(Marvel_Cinematic_Universe)",
+          "title": "Peter Quill (Marvel Cinematic Universe) - Wikipedia",
+          "score": 10
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Avengers:_Infinity_War",
+          "title": "Avengers: Infinity War - Wikipedia",
+          "score": 8
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Avengers:_Endgame",
+          "title": "Avengers: Endgame - Wikipedia",
+          "score": 8
+        }
+      ]
+    },
+    {
+      "query": "guardians star lord",
+      "recall_at_10": 1,
+      "reciprocal_rank": 1,
+      "took_ms": 2.313,
+      "results": [
+        {
+          "url": "https://en.wikipedia.org/wiki/Peter_Quill_(Marvel_Cinematic_Universe)",
+          "title": "Peter Quill (Marvel Cinematic Universe) - Wikipedia",
+          "score": 121
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Avengers:_Endgame",
+          "title": "Avengers: Endgame - Wikipedia",
+          "score": 75
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Avengers:_Infinity_War",
+          "title": "Avengers: Infinity War - Wikipedia",
+          "score": 67
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Thanos",
+          "title": "Thanos - Wikipedia",
+          "score": 53
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Avengers:_Age_of_Ultron",
+          "title": "Avengers: Age of Ultron - Wikipedia",
+          "score": 48
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Iron_Man",
+          "title": "Iron Man - Wikipedia",
+          "score": 16
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Spider-Man",
+          "title": "Spider-Man - Wikipedia",
+          "score": 16
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Scarlet_Witch",
+          "title": "Scarlet Witch - Wikipedia",
+          "score": 13
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Hulk",
+          "title": "Hulk - Wikipedia",
+          "score": 10
+        }
+      ]
+    },
+    {
+      "query": "avengers battle thanos",
+      "recall_at_10": 1,
+      "reciprocal_rank": 1,
+      "took_ms": 2.33,
+      "results": [
+        {
+          "url": "https://en.wikipedia.org/wiki/Thanos",
+          "title": "Thanos - Wikipedia",
+          "score": 714
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Avengers:_Age_of_Ultron",
+          "title": "Avengers: Age of Ultron - Wikipedia",
+          "score": 545
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Scarlet_Witch",
+          "title": "Scarlet Witch - Wikipedia",
+          "score": 494
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Avengers:_Endgame",
+          "title": "Avengers: Endgame - Wikipedia",
+          "score": 470
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Avengers:_Infinity_War",
+          "title": "Avengers: Infinity War - Wikipedia",
+          "score": 469
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Iron_Man",
+          "title": "Iron Man - Wikipedia",
+          "score": 122
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Spider-Man",
+          "title": "Spider-Man - Wikipedia",
+          "score": 99
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Hulk",
+          "title": "Hulk - Wikipedia",
+          "score": 87
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Peter_Quill_(Marvel_Cinematic_Universe)",
+          "title": "Peter Quill (Marvel Cinematic Universe) - Wikipedia",
+          "score": 76
+        }
+      ]
+    },
+    {
+      "query": "spidr man",
+      "recall_at_10": 1,
+      "reciprocal_rank": 0.3333333333333333,
+      "took_ms": 2.302,
+      "results": [
+        {
+          "url": "https://en.wikipedia.org/wiki/Iron_Man",
+          "title": "Iron Man - Wikipedia",
+          "score": 632
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Hulk",
+          "title": "Hulk - Wikipedia",
+          "score": 130
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Spider-Man",
+          "title": "Spider-Man - Wikipedia",
+          "score": 124
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Scarlet_Witch",
+          "title": "Scarlet Witch - Wikipedia",
+          "score": 104
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Avengers:_Age_of_Ultron",
+          "title": "Avengers: Age of Ultron - Wikipedia",
+          "score": 71
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Avengers:_Endgame",
+          "title": "Avengers: Endgame - Wikipedia",
+          "score": 60
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Avengers:_Infinity_War",
+          "title": "Avengers: Infinity War - Wikipedia",
+          "score": 50
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Thanos",
+          "title": "Thanos - Wikipedia",
+          "score": 45
+        },
+        {
+          "url": "https://en.wikipedia.org/wiki/Peter_Quill_(Marvel_Cinematic_Universe)",
+          "title": "Peter Quill (Marvel Cinematic Universe) - Wikipedia",
+          "score": 26
+        }
+      ]
+    }
+  ]
+}

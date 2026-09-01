@@ -8,9 +8,17 @@ type Page struct {
 }
 
 type SearchResult struct {
-	URL   string `json:"url"`
-	Title string `json:"title"`
-	Score int    `json:"score"`
+	URL             string           `json:"url"`
+	Title           string           `json:"title"`
+	Score           float64          `json:"score"`
+	MatchedSections []MatchedSection `json:"matched_sections,omitempty"`
+}
+
+type MatchedSection struct {
+	SectionID string  `json:"section_id"`
+	Heading   string  `json:"heading"`
+	Snippet   string  `json:"snippet"`
+	Score     float64 `json:"score"`
 }
 
 type FetchResult struct {

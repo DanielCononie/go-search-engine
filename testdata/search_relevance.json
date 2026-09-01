@@ -1,0 +1,55 @@
+[
+  {
+    "query": "iron man armor",
+    "relevant_urls": [
+      "https://en.wikipedia.org/wiki/Iron_Man"
+    ],
+    "notes": "Title and body term match."
+  },
+  {
+    "query": "\"infinity stones\"",
+    "relevant_urls": [
+      "https://en.wikipedia.org/wiki/Thanos",
+      "https://en.wikipedia.org/wiki/Avengers:_Infinity_War"
+    ],
+    "notes": "Exact phrase behavior."
+  },
+  {
+    "query": "who created ultron",
+    "relevant_urls": [
+      "https://en.wikipedia.org/wiki/Avengers:_Age_of_Ultron",
+      "https://en.wikipedia.org/wiki/Iron_Man"
+    ],
+    "notes": "Question concentrated in a page section."
+  },
+  {
+    "query": "scarlet witch powers",
+    "relevant_urls": [
+      "https://en.wikipedia.org/wiki/Scarlet_Witch"
+    ],
+    "notes": "Entity plus attribute."
+  },
+  {
+    "query": "guardians star lord",
+    "relevant_urls": [
+      "https://en.wikipedia.org/wiki/Peter_Quill_(Marvel_Cinematic_Universe)"
+    ],
+    "notes": "Alias and related-term query."
+  },
+  {
+    "query": "avengers battle thanos",
+    "relevant_urls": [
+      "https://en.wikipedia.org/wiki/Avengers:_Endgame",
+      "https://en.wikipedia.org/wiki/Avengers:_Infinity_War",
+      "https://en.wikipedia.org/wiki/Thanos"
+    ],
+    "notes": "Broad multi-document query."
+  },
+  {
+    "query": "spidr man",
+    "relevant_urls": [
+      "https://en.wikipedia.org/wiki/Spider-Man"
+    ],
+    "notes": "Misspelling baseline; automatic correction is not required in Phase 0."
+  }
+]
