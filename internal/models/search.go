@@ -1,5 +1,7 @@
 package models
 
+import "time"
+
 type Page struct {
 	URL     string
 	Title   string
@@ -8,6 +10,7 @@ type Page struct {
 }
 
 type SearchResult struct {
+	PageID          string           `json:"page_id,omitempty"`
 	URL             string           `json:"url"`
 	Title           string           `json:"title"`
 	Score           float64          `json:"score"`
@@ -22,7 +25,9 @@ type MatchedSection struct {
 }
 
 type FetchResult struct {
-	URL  string
-	HTML string
-	Err  error
+	URL        string
+	HTML       string
+	StatusCode int
+	FetchedAt  time.Time
+	Err        error
 }

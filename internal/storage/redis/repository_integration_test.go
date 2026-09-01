@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/DanielCononie/go-search-engine.git/go-search-engine/internal/documents"
+	searchdomain "github.com/DanielCononie/go-search-engine.git/go-search-engine/internal/search"
 	"github.com/DanielCononie/go-search-engine.git/go-search-engine/internal/storage"
 	goredis "github.com/redis/go-redis/v9"
 )
@@ -83,6 +84,109 @@ func TestRepositoryIntegration(t *testing.T) {
 	}
 }
 
+func TestReplacePageIntegration(t *testing.T) {
+	address := os.Getenv("REDIS_INTEGRATION_ADDR")
+	if address == "" {
+		t.Skip("REDIS_INTEGRATION_ADDR is not set")
+	}
+
+	client := goredis.NewClient(&goredis.Options{Addr: address, Protocol: 2})
+	t.Cleanup(func() {
+		_ = client.Close()
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	repository := NewRepository(client)
+	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
+	page := documents.Page{
+		ID:         "replace-" + suffix,
+		Title:      "Replace example",
+		SectionIDs: []string{"section-a-" + suffix, "section-b-" + suffix},
+	}
+	sectionA := documents.Section{
+		ID:          page.SectionIDs[0],
+		PageID:      page.ID,
+		Heading:     "A",
+		Text:        "Alpha",
+		ContentHash: "sha256:alpha",
+	}
+	sectionB := documents.Section{
+		ID:          page.SectionIDs[1],
+		PageID:      page.ID,
+		Heading:     "B",
+		Text:        "Beta",
+		ContentHash: "sha256:beta",
+	}
+	t.Cleanup(func() {
+		_ = repository.DeletePage(context.Background(), page.ID)
+		_ = repository.DeleteSection(context.Background(), sectionA.ID)
+		_ = repository.DeleteSection(context.Background(), sectionB.ID)
+		_ = repository.DeleteSection(context.Background(), "section-c-"+suffix)
+		_ = client.Del(
+			context.Background(),
+			CrawlFailureKeyPrefix+page.ID,
+		).Err()
+	})
+
+	if err := repository.ReplacePage(ctx, page, []documents.Section{sectionA, sectionB}); err != nil {
+		t.Fatal(err)
+	}
+	if err := client.Do(
+		ctx,
+		"JSON.SET",
+		SectionKeyPrefix+sectionA.ID,
+		"$.embedding_model",
+		`"keep-me"`,
+	).Err(); err != nil {
+		t.Fatal(err)
+	}
+	if err := repository.SaveCrawlFailure(ctx, documents.CrawlFailure{
+		PageID: page.ID,
+		URL:    "https://example.com",
+		Error:  "temporary",
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	sectionC := documents.Section{
+		ID:          "section-c-" + suffix,
+		PageID:      page.ID,
+		Heading:     "C",
+		Text:        "Gamma",
+		ContentHash: "sha256:gamma",
+	}
+	sectionA.Ordinal = 2
+	page.SectionIDs = []string{sectionA.ID, sectionC.ID}
+	if err := repository.ReplacePage(ctx, page, []documents.Section{sectionA, sectionC}); err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := repository.Section(ctx, sectionB.ID); !errors.Is(err, storage.ErrNotFound) {
+		t.Fatalf("stale section error = %v, want ErrNotFound", err)
+	}
+	storedA, err := repository.Section(ctx, sectionA.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if storedA.EmbeddingModel != "keep-me" {
+		t.Fatalf("section embedding was not preserved: %#v", storedA)
+	}
+	if storedA.Ordinal != sectionA.Ordinal {
+		t.Fatalf("section metadata was not updated: %#v", storedA)
+	}
+	if _, err := repository.Section(ctx, sectionC.ID); err != nil {
+		t.Fatal(err)
+	}
+	exists, err := client.Exists(ctx, CrawlFailureKeyPrefix+page.ID).Result()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exists != 0 {
+		t.Fatal("successful replacement must clear the crawl failure")
+	}
+}
+
 func TestIndexManagerIntegration(t *testing.T) {
 	address := os.Getenv("REDIS_INTEGRATION_ADDR")
 	if address == "" {
@@ -116,5 +220,150 @@ func TestIndexManagerIntegration(t *testing.T) {
 	}
 	if err := manager.Check(ctx); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestSearchBackendIntegration(t *testing.T) {
+	address := os.Getenv("REDIS_INTEGRATION_ADDR")
+	if address == "" {
+		t.Skip("REDIS_INTEGRATION_ADDR is not set")
+	}
+
+	client := goredis.NewClient(&goredis.Options{Addr: address, Protocol: 2})
+	t.Cleanup(func() {
+		_ = client.Close()
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
+	indexName := "test_search_sections_" + suffix
+	aliasName := "test_search_sections_alias_" + suffix
+	pagePrefix := "test:search:page:" + suffix + ":"
+	sectionPrefix := "test:search:section:" + suffix + ":"
+	failurePrefix := "test:search:failure:" + suffix + ":"
+	indexManager := newIndexManager(
+		client,
+		indexName,
+		aliasName,
+		sectionPrefix,
+	)
+	if err := indexManager.Ensure(ctx); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = client.Do(context.Background(), "FT.ALIASDEL", aliasName).Err()
+		_ = client.Do(context.Background(), "FT.DROPINDEX", indexName, "DD").Err()
+	})
+
+	repository := newRepository(
+		client,
+		pagePrefix,
+		sectionPrefix,
+		failurePrefix,
+	)
+	pages := []documents.Page{
+		{
+			ID:         "page-one",
+			URL:        "https://example.com/one",
+			Title:      "Exact phrase",
+			Site:       "example.com",
+			Language:   "en",
+			SectionIDs: []string{"section-one"},
+		},
+		{
+			ID:         "page-two",
+			URL:        "https://other.example/two",
+			Title:      "Separate terms",
+			Site:       "other.example",
+			Language:   "en",
+			SectionIDs: []string{"section-two"},
+		},
+	}
+	sections := []documents.Section{
+		{
+			ID:          "section-one",
+			PageID:      "page-one",
+			URL:         "https://example.com/one#details",
+			PageTitle:   "Exact phrase",
+			Site:        "example.com",
+			Language:    "en",
+			Heading:     "Details",
+			Text:        "The infinity stones are a cosmicartifactkeyword.",
+			ContentHash: "sha256:one",
+		},
+		{
+			ID:          "section-two",
+			PageID:      "page-two",
+			URL:         "https://other.example/two#details",
+			PageTitle:   "Separate terms",
+			Site:        "other.example",
+			Language:    "en",
+			Heading:     "Details",
+			Text:        "Infinity is separate from stones but both describe a cosmicartifactkeyword.",
+			ContentHash: "sha256:two",
+		},
+	}
+	for index := range pages {
+		if err := repository.ReplacePage(ctx, pages[index], sections[index:index+1]); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	backend := newSearchBackend(client, aliasName)
+	exact := waitForSearchResults(t, ctx, backend, searchdomain.Request{
+		Query: `"infinity stones"`,
+		Limit: 10,
+	})
+	if exact.Total != 1 || exact.Results[0].PageID != "page-one" {
+		t.Fatalf("exact phrase results = %#v", exact)
+	}
+
+	filtered, err := backend.Search(ctx, searchdomain.Request{
+		Query: "cosmicartifactkeyword",
+		Site:  "other.example",
+		Limit: 10,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filtered.Total != 1 || filtered.Results[0].PageID != "page-two" {
+		t.Fatalf("filtered results = %#v", filtered)
+	}
+
+	secondPage, err := backend.Search(ctx, searchdomain.Request{
+		Query:  "cosmicartifactkeyword",
+		Limit:  1,
+		Offset: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if secondPage.Total != 2 || len(secondPage.Results) != 1 {
+		t.Fatalf("paginated results = %#v", secondPage)
+	}
+}
+
+func waitForSearchResults(
+	t *testing.T,
+	ctx context.Context,
+	backend *SearchBackend,
+	request searchdomain.Request,
+) searchdomain.ResultPage {
+	t.Helper()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		result, err := backend.Search(ctx, request)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result.Total > 0 {
+			return result
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("timed out waiting for Redis Search indexing")
+		}
+		time.Sleep(20 * time.Millisecond)
 	}
 }

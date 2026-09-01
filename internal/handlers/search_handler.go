@@ -47,13 +47,16 @@ func (h *SearchHandler) Search(c *fiber.Ctx) error {
 	}
 
 	response, err := h.searchService.Search(c.UserContext(), search.Request{
-		Query:  question,
-		Mode:   mode,
-		Limit:  limit,
-		Offset: offset,
+		Query:    question,
+		Mode:     mode,
+		Limit:    limit,
+		Offset:   offset,
+		Site:     c.Query("site"),
+		Language: c.Query("language"),
 	})
 	if errors.Is(err, search.ErrUnsupportedMode) ||
-		errors.Is(err, search.ErrInvalidPagination) {
+		errors.Is(err, search.ErrInvalidPagination) ||
+		errors.Is(err, search.ErrInvalidQuery) {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": err.Error(),
 		})

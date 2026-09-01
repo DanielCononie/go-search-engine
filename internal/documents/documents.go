@@ -32,3 +32,11 @@ type Section struct {
 	EmbeddingVersion string    `json:"embedding_version,omitempty"`
 	Embedding        []float32 `json:"embedding,omitempty"`
 }
+
+type CrawlFailure struct {
+	PageID      string `json:"page_id"`
+	URL         string `json:"url"`
+	HTTPStatus  int    `json:"http_status"`
+	AttemptedAt int64  `json:"attempted_at"`
+	Error       string `json:"error"`
+}

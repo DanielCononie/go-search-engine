@@ -7,7 +7,6 @@ import (
 
 	"github.com/DanielCononie/go-search-engine.git/go-search-engine/internal/config"
 	"github.com/DanielCononie/go-search-engine.git/go-search-engine/internal/handlers"
-	"github.com/DanielCononie/go-search-engine.git/go-search-engine/internal/index"
 	"github.com/DanielCononie/go-search-engine.git/go-search-engine/internal/search"
 	redisstorage "github.com/DanielCononie/go-search-engine.git/go-search-engine/internal/storage/redis"
 	"github.com/gofiber/fiber/v2"
@@ -30,10 +29,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// Build the index once at startup. Search requests reuse this in-memory
-	// structure instead of fetching/parsing the seed URLs every time.
-	searchIndex := index.Build(config.SeedURLs)
-	searchBackend := search.NewInMemoryBackend(searchIndex)
+	searchBackend := redisstorage.NewSearchBackend(redisClient)
 	searchService := search.NewService(searchBackend)
 	searchHandler := handlers.NewSearchHandler(searchService)
 	healthChecker := redisstorage.NewHealthChecker(redisClient)

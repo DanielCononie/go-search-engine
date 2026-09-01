@@ -13,6 +13,12 @@ type PageRepository interface {
 	SavePage(ctx context.Context, page documents.Page) error
 	Page(ctx context.Context, id string) (documents.Page, error)
 	DeletePage(ctx context.Context, id string) error
+	ReplacePage(
+		ctx context.Context,
+		page documents.Page,
+		sections []documents.Section,
+	) error
+	SaveCrawlFailure(ctx context.Context, failure documents.CrawlFailure) error
 }
 
 type SectionRepository interface {
