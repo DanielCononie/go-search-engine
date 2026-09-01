@@ -34,7 +34,7 @@ func RankPages(queryTokens []string, pages []models.Page) []models.SearchResult 
 		results = append(results, models.SearchResult{
 			URL:   page.URL,
 			Title: page.Title,
-			Score: score,
+			Score: float64(score),
 		})
 	}
 
