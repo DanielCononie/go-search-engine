@@ -18,6 +18,9 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
+	if err := config.LoadEnvironment(); err != nil {
+		exit(err)
+	}
 	redisConfig, err := config.LoadRedis()
 	if err != nil {
 		exit(err)

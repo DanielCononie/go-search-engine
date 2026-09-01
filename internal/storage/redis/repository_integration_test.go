@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/DanielCononie/go-search-engine.git/go-search-engine/internal/documents"
+	embeddingdomain "github.com/DanielCononie/go-search-engine.git/go-search-engine/internal/embedding"
 	searchdomain "github.com/DanielCononie/go-search-engine.git/go-search-engine/internal/search"
 	"github.com/DanielCononie/go-search-engine.git/go-search-engine/internal/storage"
 	goredis "github.com/redis/go-redis/v9"
@@ -230,6 +231,257 @@ func TestIndexManagerIntegration(t *testing.T) {
 		diagnostics.IndexedSections != 0 {
 		t.Fatalf("index diagnostics = %#v", diagnostics)
 	}
+}
+
+func TestSemanticRepositoryAndIndexIntegration(t *testing.T) {
+	address := os.Getenv("REDIS_INTEGRATION_ADDR")
+	if address == "" {
+		t.Skip("REDIS_INTEGRATION_ADDR is not set")
+	}
+
+	client := goredis.NewClient(&goredis.Options{Addr: address, Protocol: 2})
+	t.Cleanup(func() {
+		_ = client.Close()
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
+	indexName := "test_semantic_sections_" + suffix
+	aliasName := "test_semantic_sections_alias_" + suffix
+	sourcePrefix := "test:semantic:source:" + suffix + ":"
+	semanticPrefix := "test:semantic:record:" + suffix + ":"
+	manager := newSemanticIndexManager(
+		client,
+		indexName,
+		aliasName,
+		semanticPrefix,
+		3,
+	)
+	if err := manager.Ensure(ctx); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = client.Do(context.Background(), "FT.ALIASDEL", aliasName).Err()
+		_ = client.Do(context.Background(), "FT.DROPINDEX", indexName, "DD").Err()
+	})
+
+	source := newRepository(client, "", sourcePrefix, "")
+	semantic := newSemanticRepository(client, sourcePrefix, semanticPrefix)
+	sections := []documents.Section{
+		{
+			ID:          "semantic-a-" + suffix,
+			PageID:      "page-a",
+			URL:         "https://example.com/a",
+			PageTitle:   "A",
+			Heading:     "Armor",
+			Text:        "A powered suit of armor.",
+			ContentHash: "sha256:a",
+		},
+		{
+			ID:          "semantic-b-" + suffix,
+			PageID:      "page-b",
+			URL:         "https://example.com/b",
+			PageTitle:   "B",
+			Heading:     "Magic",
+			Text:        "A hero with magical powers.",
+			ContentHash: "sha256:b",
+		},
+	}
+	profile := embeddingdomain.Profile("model", "v1", 3)
+	vectors := [][]float32{{1, 0, 0}, {0, 1, 0}}
+	for index, section := range sections {
+		if err := source.SaveSection(ctx, section); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			_ = source.DeleteSection(context.Background(), section.ID)
+		})
+		saved, err := semantic.SaveSemanticSection(
+			ctx,
+			documents.SemanticSection{
+				ID:                  section.ID,
+				SectionID:           section.ID,
+				PageID:              section.PageID,
+				URL:                 section.URL,
+				PageTitle:           section.PageTitle,
+				Heading:             section.Heading,
+				Text:                section.Text,
+				SourceContentHash:   section.ContentHash,
+				EmbeddingModel:      "model",
+				EmbeddingVersion:    "v1",
+				EmbeddingProfile:    profile,
+				EmbeddingDimensions: 3,
+				EmbeddingStatus:     "ready",
+				Embedding:           vectors[index],
+			},
+		)
+		if err != nil || !saved {
+			t.Fatalf("save semantic section: saved = %t, err = %v", saved, err)
+		}
+	}
+	if err := manager.WaitReady(ctx, len(sections)); err != nil {
+		t.Fatal(err)
+	}
+
+	diagnostics, err := semantic.Diagnostics(ctx, "v1", profile, 3)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !diagnostics.InSync || diagnostics.Ready != len(sections) {
+		t.Fatalf("semantic diagnostics = %#v", diagnostics)
+	}
+
+	changed := sections[0]
+	changed.ContentHash = "sha256:changed"
+	if err := source.SaveSection(ctx, changed); err != nil {
+		t.Fatal(err)
+	}
+	saved, err := semantic.SaveSemanticSection(
+		ctx,
+		documents.SemanticSection{
+			ID:                  changed.ID,
+			SectionID:           changed.ID,
+			SourceContentHash:   sections[0].ContentHash,
+			EmbeddingModel:      "model",
+			EmbeddingVersion:    "v1",
+			EmbeddingProfile:    profile,
+			EmbeddingDimensions: 3,
+			EmbeddingStatus:     "ready",
+			Embedding:           vectors[0],
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if saved {
+		t.Fatal("stale semantic save must be superseded")
+	}
+}
+
+func TestSemanticBackendIntegration(t *testing.T) {
+	address := os.Getenv("REDIS_INTEGRATION_ADDR")
+	if address == "" {
+		t.Skip("REDIS_INTEGRATION_ADDR is not set")
+	}
+
+	client := goredis.NewClient(&goredis.Options{Addr: address, Protocol: 2})
+	t.Cleanup(func() {
+		_ = client.Close()
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	suffix := fmt.Sprintf("%d", time.Now().UnixNano())
+	indexName := "test_semantic_search_" + suffix
+	aliasName := "test_semantic_search_alias_" + suffix
+	sourcePrefix := "test:semantic-search:source:" + suffix + ":"
+	semanticPrefix := "test:semantic-search:record:" + suffix + ":"
+	manager := newSemanticIndexManager(
+		client,
+		indexName,
+		aliasName,
+		semanticPrefix,
+		3,
+	)
+	if err := manager.Ensure(ctx); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = client.Do(context.Background(), "FT.ALIASDEL", aliasName).Err()
+		_ = client.Do(context.Background(), "FT.DROPINDEX", indexName, "DD").Err()
+	})
+
+	source := newRepository(client, "", sourcePrefix, "")
+	semantic := newSemanticRepository(client, sourcePrefix, semanticPrefix)
+	profile := embeddingdomain.Profile("model", "v1", 3)
+	for index, section := range []documents.Section{
+		{
+			ID:          "semantic-search-a-" + suffix,
+			PageID:      "page-a",
+			URL:         "https://example.com/a",
+			PageTitle:   "Powered armor",
+			Heading:     "Suit",
+			Text:        "A powered suit of armor.",
+			ContentHash: "sha256:a",
+		},
+		{
+			ID:          "semantic-search-b-" + suffix,
+			PageID:      "page-b",
+			URL:         "https://example.com/b",
+			PageTitle:   "Magic",
+			Heading:     "Powers",
+			Text:        "A hero with magical powers.",
+			ContentHash: "sha256:b",
+		},
+	} {
+		if err := source.SaveSection(ctx, section); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			_ = source.DeleteSection(context.Background(), section.ID)
+		})
+		vector := []float32{1, 0, 0}
+		if index == 1 {
+			vector = []float32{0, 1, 0}
+		}
+		saved, err := semantic.SaveSemanticSection(
+			ctx,
+			documents.SemanticSection{
+				ID:                  section.ID,
+				SectionID:           section.ID,
+				PageID:              section.PageID,
+				URL:                 section.URL,
+				PageTitle:           section.PageTitle,
+				Heading:             section.Heading,
+				Text:                section.Text,
+				SourceContentHash:   section.ContentHash,
+				EmbeddingModel:      "model",
+				EmbeddingVersion:    "v1",
+				EmbeddingProfile:    profile,
+				EmbeddingDimensions: 3,
+				EmbeddingStatus:     "ready",
+				Embedding:           vector,
+			},
+		)
+		if err != nil || !saved {
+			t.Fatalf("save semantic section: saved = %t, err = %v", saved, err)
+		}
+	}
+	if err := manager.WaitReady(ctx, 2); err != nil {
+		t.Fatal(err)
+	}
+
+	backend := newSemanticBackend(
+		client,
+		staticEmbedder{vectors: [][]float32{{0.9, 0.1, 0}}},
+		aliasName,
+		profile,
+		3,
+	)
+	result, err := backend.Search(ctx, searchdomain.Request{
+		Query: "hero in powered armor",
+		Limit: 10,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Total != 2 ||
+		result.Results[0].PageID != "page-a" ||
+		result.Results[0].MatchedSections[0].Heading != "Suit" {
+		t.Fatalf("semantic result = %#v", result)
+	}
+}
+
+type staticEmbedder struct {
+	vectors [][]float32
+}
+
+func (e staticEmbedder) Embed(
+	_ context.Context,
+	_ []string,
+) ([][]float32, error) {
+	return e.vectors, nil
 }
 
 func TestSearchBackendIntegration(t *testing.T) {

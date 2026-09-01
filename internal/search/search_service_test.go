@@ -51,18 +51,58 @@ func TestServiceSearchUsesLexicalDefaults(t *testing.T) {
 	}
 }
 
-func TestServiceSearchRejectsUnsupportedMode(t *testing.T) {
+func TestServiceSearchReportsUnavailableSemanticMode(t *testing.T) {
 	service := NewService(stubBackend{})
 
 	_, err := service.Search(context.Background(), Request{
 		Query: "example",
-		Mode:  Mode("semantic"),
+		Mode:  ModeSemantic,
+	})
+	if !errors.Is(err, ErrModeUnavailable) {
+		t.Fatalf("error = %v, want ErrModeUnavailable", err)
+	}
+}
+
+func TestServiceSearchRoutesSemanticMode(t *testing.T) {
+	semantic := &recordingBackend{}
+	service := NewServiceWithSemantic(stubBackend{}, semantic)
+
+	response, err := service.Search(context.Background(), Request{
+		Query: "a hero who uses powered armor",
+		Mode:  ModeSemantic,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if semantic.request.Mode != ModeSemantic ||
+		response.Mode != ModeSemantic ||
+		response.UsedMode != ModeSemantic {
+		t.Fatalf("request = %#v, response = %#v", semantic.request, response)
+	}
+}
+
+func TestServiceSearchRejectsUnknownMode(t *testing.T) {
+	service := NewService(stubBackend{})
+	_, err := service.Search(context.Background(), Request{
+		Query: "example",
+		Mode:  Mode("hybrid"),
 	})
 	if !errors.Is(err, ErrUnsupportedMode) {
 		t.Fatalf("error = %v, want ErrUnsupportedMode", err)
 	}
 }
 
+type recordingBackend struct {
+	request Request
+}
+
+func (b *recordingBackend) Search(
+	_ context.Context,
+	request Request,
+) (ResultPage, error) {
+	b.request = request
+	return ResultPage{}, nil
+}
 func TestServiceSearchRejectsInvalidPagination(t *testing.T) {
 	service := NewService(stubBackend{})
 
@@ -78,28 +118,37 @@ func TestServiceSearchRejectsInvalidPagination(t *testing.T) {
 }
 
 func TestRelevanceFixture(t *testing.T) {
-	data, err := os.ReadFile("../../testdata/search_relevance.json")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	var cases []struct {
-		Query        string   `json:"query"`
-		RelevantURLs []string `json:"relevant_urls"`
-	}
-	if err := json.Unmarshal(data, &cases); err != nil {
-		t.Fatal(err)
-	}
-	if len(cases) == 0 {
-		t.Fatal("relevance fixture must contain at least one query")
-	}
-
-	for _, testCase := range cases {
-		if testCase.Query == "" {
-			t.Fatal("relevance query must not be empty")
+	for _, path := range []string{
+		"../../testdata/search_relevance.json",
+		"../../testdata/semantic_relevance.json",
+	} {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
 		}
-		if len(testCase.RelevantURLs) == 0 {
-			t.Fatalf("query %q has no relevant URLs", testCase.Query)
+
+		var cases []struct {
+			Query        string   `json:"query"`
+			RelevantURLs []string `json:"relevant_urls"`
+		}
+		if err := json.Unmarshal(data, &cases); err != nil {
+			t.Fatal(err)
+		}
+		if len(cases) == 0 {
+			t.Fatalf("%s must contain at least one query", path)
+		}
+
+		for _, testCase := range cases {
+			if testCase.Query == "" {
+				t.Fatalf("%s has an empty relevance query", path)
+			}
+			if len(testCase.RelevantURLs) == 0 {
+				t.Fatalf(
+					"%s query %q has no relevant URLs",
+					path,
+					testCase.Query,
+				)
+			}
 		}
 	}
 }

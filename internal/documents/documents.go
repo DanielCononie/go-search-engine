@@ -33,6 +33,31 @@ type Section struct {
 	Embedding        []float32 `json:"embedding,omitempty"`
 }
 
+type SemanticSection struct {
+	ID                  string    `json:"id"`
+	SectionID           string    `json:"section_id"`
+	PageID              string    `json:"page_id"`
+	URL                 string    `json:"url"`
+	PageTitle           string    `json:"page_title"`
+	Heading             string    `json:"heading"`
+	HeadingPath         string    `json:"heading_path"`
+	Ordinal             int       `json:"ordinal"`
+	Text                string    `json:"text"`
+	Language            string    `json:"language"`
+	Site                string    `json:"site"`
+	CrawledAt           int64     `json:"crawled_at"`
+	SourceContentHash   string    `json:"source_content_hash"`
+	EmbeddingModel      string    `json:"embedding_model"`
+	EmbeddingVersion    string    `json:"embedding_version"`
+	EmbeddingProfile    string    `json:"embedding_profile"`
+	EmbeddingDimensions int       `json:"embedding_dimensions"`
+	EmbeddingUpdatedAt  int64     `json:"embedding_updated_at,omitempty"`
+	EmbeddingStatus     string    `json:"embedding_status"`
+	EmbeddingAttempts   int       `json:"embedding_attempts,omitempty"`
+	EmbeddingLastError  string    `json:"embedding_last_error,omitempty"`
+	Embedding           []float32 `json:"embedding,omitempty"`
+}
+
 type CrawlFailure struct {
 	PageID      string `json:"page_id"`
 	URL         string `json:"url"`

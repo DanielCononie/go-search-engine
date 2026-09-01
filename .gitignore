@@ -1,1 +1,4 @@
 .gocache/
+.env
+.env.local
+.env.*.local

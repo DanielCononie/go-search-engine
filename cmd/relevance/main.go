@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/DanielCononie/go-search-engine.git/go-search-engine/internal/config"
+	"github.com/DanielCononie/go-search-engine.git/go-search-engine/internal/embedding"
 	"github.com/DanielCononie/go-search-engine.git/go-search-engine/internal/evaluation"
 	"github.com/DanielCononie/go-search-engine.git/go-search-engine/internal/index"
 	"github.com/DanielCononie/go-search-engine.git/go-search-engine/internal/models"
@@ -17,6 +18,9 @@ import (
 )
 
 func main() {
+	if err := config.LoadEnvironment(); err != nil {
+		exit(err)
+	}
 	fixturePath := flag.String(
 		"fixture",
 		"testdata/search_relevance.json",
@@ -25,7 +29,7 @@ func main() {
 	backendName := flag.String(
 		"backend",
 		"memory",
-		"search backend to evaluate: memory or redis",
+		"search backend to evaluate: memory, redis, or semantic",
 	)
 	flag.Parse()
 
@@ -34,7 +38,7 @@ func main() {
 		exit(err)
 	}
 
-	service, indexingDuration, metadata, closeBackend, err := newSearchService(*backendName)
+	service, mode, indexingDuration, metadata, closeBackend, err := newSearchService(*backendName)
 	if err != nil {
 		exit(err)
 	}
@@ -46,6 +50,7 @@ func main() {
 		startedAt := time.Now()
 		response, err := service.Search(context.Background(), search.Request{
 			Query: judgment.Query,
+			Mode:  mode,
 			Limit: 10,
 		})
 		latencies = append(latencies, time.Since(startedAt))
@@ -78,12 +83,13 @@ func main() {
 
 func newSearchService(
 	backendName string,
-) (*search.Service, time.Duration, backendMetadata, func(), error) {
+) (*search.Service, search.Mode, time.Duration, backendMetadata, func(), error) {
 	switch backendName {
 	case "memory":
 		indexStartedAt := time.Now()
 		searchIndex := index.Build(config.SeedURLs)
 		return search.NewService(search.NewInMemoryBackend(searchIndex)),
+			search.ModeLexical,
 			time.Since(indexStartedAt),
 			backendMetadata{},
 			func() {},
@@ -91,7 +97,7 @@ func newSearchService(
 	case "redis":
 		redisConfig, err := config.LoadRedis()
 		if err != nil {
-			return nil, 0, backendMetadata{}, nil, err
+			return nil, "", 0, backendMetadata{}, nil, err
 		}
 		client := redisstorage.NewClient(redisConfig)
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -99,14 +105,15 @@ func newSearchService(
 		index, err := redisstorage.NewIndexManager(client).Diagnostics(ctx)
 		if err != nil {
 			_ = client.Close()
-			return nil, 0, backendMetadata{}, nil, err
+			return nil, "", 0, backendMetadata{}, nil, err
 		}
 		corpus, err := redisstorage.NewRepository(client).CorpusDiagnostics(ctx)
 		if err != nil {
 			_ = client.Close()
-			return nil, 0, backendMetadata{}, nil, err
+			return nil, "", 0, backendMetadata{}, nil, err
 		}
 		return search.NewService(redisstorage.NewSearchBackend(client)),
+			search.ModeLexical,
 			0,
 			backendMetadata{
 				indexAlias:    index.Alias,
@@ -115,12 +122,99 @@ func newSearchService(
 			},
 			func() { _ = client.Close() },
 			nil
+	case "semantic":
+		return newSemanticSearchService()
 	default:
-		return nil, 0, backendMetadata{}, nil, fmt.Errorf(
-			"unsupported relevance backend %q: use memory or redis",
+		return nil, "", 0, backendMetadata{}, nil, fmt.Errorf(
+			"unsupported relevance backend %q: use memory, redis, or semantic",
 			backendName,
 		)
 	}
+}
+
+func newSemanticSearchService() (
+	*search.Service,
+	search.Mode,
+	time.Duration,
+	backendMetadata,
+	func(),
+	error,
+) {
+	embeddingConfig, err := config.LoadEmbedding()
+	if err != nil {
+		return nil, "", 0, backendMetadata{}, nil, err
+	}
+	if !embeddingConfig.Enabled {
+		return nil, "", 0, backendMetadata{}, nil, fmt.Errorf(
+			"embedding configuration is required for semantic relevance evaluation",
+		)
+	}
+	redisConfig, err := config.LoadRedis()
+	if err != nil {
+		return nil, "", 0, backendMetadata{}, nil, err
+	}
+	client := redisstorage.NewClient(redisConfig)
+	closeClient := func() { _ = client.Close() }
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	profile := embedding.Profile(
+		embeddingConfig.Model,
+		embeddingConfig.Version,
+		embeddingConfig.Dimensions,
+	)
+	manager := redisstorage.NewSemanticIndexManager(
+		client,
+		embeddingConfig.IndexVersion,
+		embeddingConfig.Dimensions,
+	)
+	indexDiagnostics, err := manager.Diagnostics(ctx)
+	if err != nil {
+		closeClient()
+		return nil, "", 0, backendMetadata{}, nil, err
+	}
+	semanticDiagnostics, err := redisstorage.NewSemanticRepository(
+		client,
+		embeddingConfig.IndexVersion,
+	).Diagnostics(
+		ctx,
+		embeddingConfig.IndexVersion,
+		profile,
+		embeddingConfig.Dimensions,
+	)
+	if err != nil {
+		closeClient()
+		return nil, "", 0, backendMetadata{}, nil, err
+	}
+	if indexDiagnostics.PhysicalIndex != manager.TargetName() ||
+		indexDiagnostics.Indexing ||
+		indexDiagnostics.IndexingFailures != 0 ||
+		indexDiagnostics.IndexedSections != semanticDiagnostics.Ready ||
+		!semanticDiagnostics.InSync {
+		closeClient()
+		return nil, "", 0, backendMetadata{}, nil, fmt.Errorf(
+			"semantic index is not active and synchronized; run cmd/embedder",
+		)
+	}
+	corpus, err := redisstorage.NewRepository(client).CorpusDiagnostics(ctx)
+	if err != nil {
+		closeClient()
+		return nil, "", 0, backendMetadata{}, nil, err
+	}
+	semanticBackend := redisstorage.NewSemanticBackend(
+		client,
+		embedding.NewOpenAIClient(embeddingConfig),
+		profile,
+		embeddingConfig.Dimensions,
+	)
+	return search.NewServiceWithSemantic(
+			redisstorage.NewSearchBackend(client),
+			semanticBackend,
+		), search.ModeSemantic, 0, backendMetadata{
+			indexAlias:    indexDiagnostics.Alias,
+			physicalIndex: indexDiagnostics.PhysicalIndex,
+			corpusVersion: corpus.Version,
+		}, closeClient, nil
 }
 
 type backendMetadata struct {

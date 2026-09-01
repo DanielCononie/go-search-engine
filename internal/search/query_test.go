@@ -51,3 +51,40 @@ func TestCompileLexicalQueryRejectsMalformedInput(t *testing.T) {
 		})
 	}
 }
+
+func TestCompileSemanticFilter(t *testing.T) {
+	filter, err := CompileSemanticFilter(
+		"EN.Wikipedia.org",
+		"en-US",
+		"abcdef012345",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expected := "(@site:{en\\.wikipedia\\.org} @language:{en\\-us} " +
+		"@embedding_status:{ready} @embedding_profile:{abcdef012345})"
+	if filter != expected {
+		t.Fatalf("filter = %q, want %q", filter, expected)
+	}
+}
+
+func TestValidateSemanticQueryRejectsInvalidInput(t *testing.T) {
+	for _, request := range []struct {
+		query    string
+		site     string
+		language string
+	}{
+		{query: "@#$"},
+		{query: strings.Repeat("a", MaxQueryRunes+1)},
+		{query: "meaning", site: "site} @text:{*"},
+		{query: "meaning", language: "en|fr"},
+	} {
+		if err := ValidateSemanticQuery(
+			request.query,
+			request.site,
+			request.language,
+		); !errors.Is(err, ErrInvalidQuery) {
+			t.Fatalf("error = %v, want ErrInvalidQuery", err)
+		}
+	}
+}

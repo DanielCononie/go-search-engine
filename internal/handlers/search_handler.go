@@ -61,6 +61,11 @@ func (h *SearchHandler) Search(c *fiber.Ctx) error {
 			"error": err.Error(),
 		})
 	}
+	if errors.Is(err, search.ErrModeUnavailable) {
+		return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+			"error": err.Error(),
+		})
+	}
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "search failed",

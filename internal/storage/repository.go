@@ -24,6 +24,7 @@ type PageRepository interface {
 type SectionRepository interface {
 	SaveSection(ctx context.Context, section documents.Section) error
 	Section(ctx context.Context, id string) (documents.Section, error)
+	Sections(ctx context.Context) ([]documents.Section, error)
 	DeleteSection(ctx context.Context, id string) error
 }
 

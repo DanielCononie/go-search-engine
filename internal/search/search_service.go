@@ -19,10 +19,14 @@ const (
 
 type Mode string
 
-const ModeLexical Mode = "lexical"
+const (
+	ModeLexical  Mode = "lexical"
+	ModeSemantic Mode = "semantic"
+)
 
 var (
 	ErrUnsupportedMode   = errors.New("unsupported search mode")
+	ErrModeUnavailable   = errors.New("search mode unavailable")
 	ErrInvalidPagination = errors.New("invalid search pagination")
 	ErrInvalidQuery      = errors.New("invalid search query")
 )
@@ -63,12 +67,23 @@ type Backend interface {
 }
 
 type Service struct {
-	backend Backend
+	lexicalBackend  Backend
+	semanticBackend Backend
 }
 
 func NewService(backend Backend) *Service {
 	return &Service{
-		backend: backend,
+		lexicalBackend: backend,
+	}
+}
+
+func NewServiceWithSemantic(
+	lexicalBackend Backend,
+	semanticBackend Backend,
+) *Service {
+	return &Service{
+		lexicalBackend:  lexicalBackend,
+		semanticBackend: semanticBackend,
 	}
 }
 
@@ -76,18 +91,31 @@ func (s *Service) Search(ctx context.Context, request Request) (Response, error)
 	if request.Mode == "" {
 		request.Mode = ModeLexical
 	}
-	if request.Mode != ModeLexical {
+	var backend Backend
+	switch request.Mode {
+	case ModeLexical:
+		if _, err := CompileLexicalQuery(
+			request.Query,
+			request.Site,
+			request.Language,
+		); err != nil {
+			return Response{}, err
+		}
+		backend = s.lexicalBackend
+	case ModeSemantic:
+		if err := ValidateSemanticQuery(
+			request.Query,
+			request.Site,
+			request.Language,
+		); err != nil {
+			return Response{}, err
+		}
+		if s.semanticBackend == nil {
+			return Response{}, ErrModeUnavailable
+		}
+		backend = s.semanticBackend
+	default:
 		return Response{}, ErrUnsupportedMode
-	}
-	if request.Query == "" {
-		return Response{}, ErrInvalidQuery
-	}
-	if _, err := CompileLexicalQuery(
-		request.Query,
-		request.Site,
-		request.Language,
-	); err != nil {
-		return Response{}, err
 	}
 	if request.Limit == 0 {
 		request.Limit = DefaultLimit
@@ -97,7 +125,7 @@ func (s *Service) Search(ctx context.Context, request Request) (Response, error)
 	}
 
 	startedAt := time.Now()
-	page, err := s.backend.Search(ctx, request)
+	page, err := backend.Search(ctx, request)
 	if err != nil {
 		return Response{}, err
 	}

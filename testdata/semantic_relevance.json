@@ -1,0 +1,45 @@
+[
+  {
+    "query": "billionaire engineer who builds a powered suit of armor",
+    "relevant_urls": [
+      "https://en.wikipedia.org/wiki/Iron_Man"
+    ],
+    "notes": "Conceptual description without requiring the entity name."
+  },
+  {
+    "query": "villain collecting magical stones to erase half of all life",
+    "relevant_urls": [
+      "https://en.wikipedia.org/wiki/Thanos",
+      "https://en.wikipedia.org/wiki/Avengers:_Infinity_War"
+    ],
+    "notes": "Plot and character intent expressed without exact title terms."
+  },
+  {
+    "query": "witch whose abilities include chaos magic and reality alteration",
+    "relevant_urls": [
+      "https://en.wikipedia.org/wiki/Scarlet_Witch"
+    ],
+    "notes": "Attribute-focused natural-language query."
+  },
+  {
+    "query": "human leader of the guardians of the galaxy known as star lord",
+    "relevant_urls": [
+      "https://en.wikipedia.org/wiki/Peter_Quill_(Marvel_Cinematic_Universe)"
+    ],
+    "notes": "Alias and role expressed as a description."
+  },
+  {
+    "query": "green superhero transformed by anger and gamma radiation",
+    "relevant_urls": [
+      "https://en.wikipedia.org/wiki/Hulk"
+    ],
+    "notes": "Conceptual character description."
+  },
+  {
+    "query": "final battle where the heroes reverse the snap and defeat thanos",
+    "relevant_urls": [
+      "https://en.wikipedia.org/wiki/Avengers:_Endgame"
+    ],
+    "notes": "Plot event intended to exercise section-level semantic retrieval."
+  }
+]

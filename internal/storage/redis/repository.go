@@ -68,8 +68,7 @@ for keyIndex = 3, #KEYS do
 				local embeddingFields = {
 					"embedding",
 					"embedding_model",
-					"embedding_dim",
-					"embedding_updated_at"
+					"embedding_version"
 				}
 				for _, field in ipairs(embeddingFields) do
 					if decodedOld[field] ~= nil then
@@ -269,6 +268,27 @@ func (r *Repository) Section(ctx context.Context, id string) (documents.Section,
 	}
 
 	return section, nil
+}
+
+func (r *Repository) Sections(ctx context.Context) ([]documents.Section, error) {
+	keys, err := r.scanKeys(ctx, r.sectionPrefix+"*")
+	if err != nil {
+		return nil, err
+	}
+
+	sections := make([]documents.Section, 0, len(keys))
+	for _, key := range keys {
+		var section documents.Section
+		if err := r.loadJSON(ctx, key, &section); err != nil {
+			return nil, err
+		}
+		sections = append(sections, section)
+	}
+	sort.Slice(sections, func(i int, j int) bool {
+		return sections[i].ID < sections[j].ID
+	})
+
+	return sections, nil
 }
 
 func (r *Repository) DeleteSection(ctx context.Context, id string) error {

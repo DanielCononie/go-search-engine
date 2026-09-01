@@ -104,7 +104,7 @@ func TestSearchHandlerRejectsInvalidOptions(t *testing.T) {
 
 	for _, path := range []string{
 		"/search",
-		"/search?q=example&mode=semantic",
+		"/search?q=example&mode=hybrid",
 		"/search?q=example&limit=101",
 		"/search?q=example&offset=-1",
 		"/search?q=%22unmatched",
@@ -117,6 +117,28 @@ func TestSearchHandlerRejectsInvalidOptions(t *testing.T) {
 		if response.StatusCode != fiber.StatusBadRequest {
 			t.Fatalf("%s status = %d, want %d", path, response.StatusCode, fiber.StatusBadRequest)
 		}
+	}
+}
+
+func TestSearchHandlerReportsUnavailableSemanticMode(t *testing.T) {
+	service := search.NewService(stubSearchBackend{})
+	app := fiber.New()
+	app.Get("/search", NewSearchHandler(service).Search)
+
+	response, err := app.Test(httptest.NewRequest(
+		"GET",
+		"/search?q=example&mode=semantic",
+		nil,
+	))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.StatusCode != fiber.StatusServiceUnavailable {
+		t.Fatalf(
+			"status = %d, want %d",
+			response.StatusCode,
+			fiber.StatusServiceUnavailable,
+		)
 	}
 }
 

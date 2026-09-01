@@ -42,22 +42,68 @@ func CompileLexicalQuery(query string, site string, language string) (string, er
 		return "", fmt.Errorf("%w: query has no searchable terms", ErrInvalidQuery)
 	}
 
+	filters, err := compileFilters(site, language)
+	if err != nil {
+		return "", err
+	}
+	clauses = append(clauses, filters...)
+
+	return strings.Join(clauses, " "), nil
+}
+
+func CompileSemanticFilter(
+	site string,
+	language string,
+	profile string,
+) (string, error) {
+	filters, err := compileFilters(site, language)
+	if err != nil {
+		return "", err
+	}
+	safeProfile, err := safeFilter(profile, "")
+	if err != nil {
+		return "", fmt.Errorf("%w: invalid embedding profile", ErrInvalidQuery)
+	}
+	filters = append(
+		filters,
+		"@embedding_status:{ready}",
+		"@embedding_profile:{"+safeProfile+"}",
+	)
+	return "(" + strings.Join(filters, " ") + ")", nil
+}
+
+func ValidateSemanticQuery(query string, site string, language string) error {
+	if utf8.RuneCountInString(query) > MaxQueryRunes {
+		return fmt.Errorf(
+			"%w: query exceeds %d characters",
+			ErrInvalidQuery,
+			MaxQueryRunes,
+		)
+	}
+	if len(safeWords(query)) == 0 {
+		return fmt.Errorf("%w: query has no searchable terms", ErrInvalidQuery)
+	}
+	_, err := compileFilters(site, language)
+	return err
+}
+
+func compileFilters(site string, language string) ([]string, error) {
+	filters := make([]string, 0, 2)
 	if site != "" {
 		value, err := safeFilter(site, ".-")
 		if err != nil {
-			return "", fmt.Errorf("%w: invalid site filter", ErrInvalidQuery)
+			return nil, fmt.Errorf("%w: invalid site filter", ErrInvalidQuery)
 		}
-		clauses = append(clauses, "@site:{"+value+"}")
+		filters = append(filters, "@site:{"+value+"}")
 	}
 	if language != "" {
 		value, err := safeFilter(language, "-")
 		if err != nil {
-			return "", fmt.Errorf("%w: invalid language filter", ErrInvalidQuery)
+			return nil, fmt.Errorf("%w: invalid language filter", ErrInvalidQuery)
 		}
-		clauses = append(clauses, "@language:{"+value+"}")
+		filters = append(filters, "@language:{"+value+"}")
 	}
-
-	return strings.Join(clauses, " "), nil
+	return filters, nil
 }
 
 type querySegment struct {
