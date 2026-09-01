@@ -12,19 +12,113 @@ import (
 )
 
 const (
-	PageKeyPrefix    = "search:page:"
-	SectionKeyPrefix = "search:section:"
+	PageKeyPrefix         = "search:page:"
+	SectionKeyPrefix      = "search:section:"
+	CrawlFailureKeyPrefix = "search:crawl-failure:"
 )
 
+var replacePageScript = goredis.NewScript(`
+local oldPage = redis.call("JSON.GET", KEYS[1])
+local newSectionIDs = {}
+
+for keyIndex = 3, #KEYS do
+	local sectionID = string.sub(KEYS[keyIndex], string.len(ARGV[1]) + 1)
+	newSectionIDs[sectionID] = true
+end
+
+if oldPage then
+	local decodedPage = cjson.decode(oldPage)
+	if type(decodedPage["section_ids"]) == "table" then
+		for _, sectionID in ipairs(decodedPage["section_ids"]) do
+			if not newSectionIDs[sectionID] then
+				redis.call("DEL", ARGV[1] .. sectionID)
+			end
+		end
+	end
+end
+
+for keyIndex = 3, #KEYS do
+	local encodedSection = ARGV[keyIndex]
+	local oldSection = redis.call("JSON.GET", KEYS[keyIndex])
+	local shouldWrite = not oldSection
+	if oldSection then
+		local decodedOld = cjson.decode(oldSection)
+		local decodedNew = cjson.decode(encodedSection)
+		shouldWrite = decodedOld["content_hash"] ~= decodedNew["content_hash"]
+		if not shouldWrite then
+			local metadataFields = {
+				"url",
+				"page_title",
+				"heading",
+				"heading_path",
+				"ordinal",
+				"token_count",
+				"language",
+				"site"
+			}
+			for _, field in ipairs(metadataFields) do
+				if decodedOld[field] ~= decodedNew[field] then
+					shouldWrite = true
+					break
+				end
+			end
+			if shouldWrite then
+				local embeddingFields = {
+					"embedding",
+					"embedding_model",
+					"embedding_dim",
+					"embedding_updated_at"
+				}
+				for _, field in ipairs(embeddingFields) do
+					if decodedOld[field] ~= nil then
+						decodedNew[field] = decodedOld[field]
+					end
+				end
+				encodedSection = cjson.encode(decodedNew)
+			end
+		end
+	end
+	if shouldWrite then
+		redis.call("JSON.SET", KEYS[keyIndex], "$", encodedSection)
+	end
+end
+
+redis.call("JSON.SET", KEYS[1], "$", ARGV[2])
+redis.call("DEL", KEYS[2])
+return 1
+`)
+
 type Repository struct {
-	client *goredis.Client
+	client             *goredis.Client
+	pagePrefix         string
+	sectionPrefix      string
+	crawlFailurePrefix string
 }
 
 var _ storage.PageRepository = (*Repository)(nil)
 var _ storage.SectionRepository = (*Repository)(nil)
 
 func NewRepository(client *goredis.Client) *Repository {
-	return &Repository{client: client}
+	return newRepository(
+		client,
+		PageKeyPrefix,
+		SectionKeyPrefix,
+		CrawlFailureKeyPrefix,
+	)
+}
+
+func newRepository(
+	client *goredis.Client,
+	pagePrefix string,
+	sectionPrefix string,
+	crawlFailurePrefix string,
+) *Repository {
+	return &Repository{
+		client:             client,
+		pagePrefix:         pagePrefix,
+		sectionPrefix:      sectionPrefix,
+		crawlFailurePrefix: crawlFailurePrefix,
+	}
 }
 
 func (r *Repository) SavePage(ctx context.Context, page documents.Page) error {
@@ -32,7 +126,7 @@ func (r *Repository) SavePage(ctx context.Context, page documents.Page) error {
 		return errors.New("page ID is required")
 	}
 
-	return r.saveJSON(ctx, PageKeyPrefix+page.ID, page)
+	return r.saveJSON(ctx, r.pagePrefix+page.ID, page)
 }
 
 func (r *Repository) Page(ctx context.Context, id string) (documents.Page, error) {
@@ -41,7 +135,7 @@ func (r *Repository) Page(ctx context.Context, id string) (documents.Page, error
 	}
 
 	var page documents.Page
-	if err := r.loadJSON(ctx, PageKeyPrefix+id, &page); err != nil {
+	if err := r.loadJSON(ctx, r.pagePrefix+id, &page); err != nil {
 		return documents.Page{}, err
 	}
 
@@ -53,7 +147,70 @@ func (r *Repository) DeletePage(ctx context.Context, id string) error {
 		return err
 	}
 
-	return r.client.Del(ctx, PageKeyPrefix+id).Err()
+	return r.client.Del(ctx, r.pagePrefix+id).Err()
+}
+
+func (r *Repository) ReplacePage(
+	ctx context.Context,
+	page documents.Page,
+	sections []documents.Section,
+) error {
+	if err := validateID("page", page.ID); err != nil {
+		return err
+	}
+	if len(page.SectionIDs) != len(sections) {
+		return errors.New("page section IDs must match replacement sections")
+	}
+
+	keys := make([]string, 0, len(sections)+2)
+	keys = append(
+		keys,
+		r.pagePrefix+page.ID,
+		r.crawlFailurePrefix+page.ID,
+	)
+	arguments := make([]any, 0, len(sections)+2)
+	arguments = append(arguments, r.sectionPrefix)
+
+	encodedPage, err := json.Marshal(page)
+	if err != nil {
+		return fmt.Errorf("encode page %s: %w", page.ID, err)
+	}
+	arguments = append(arguments, string(encodedPage))
+	for index, section := range sections {
+		if err := validateID("section", section.ID); err != nil {
+			return err
+		}
+		if page.SectionIDs[index] != section.ID {
+			return errors.New("page section IDs must match replacement sections")
+		}
+		if section.PageID != page.ID {
+			return fmt.Errorf("section %s does not belong to page %s", section.ID, page.ID)
+		}
+
+		encodedSection, err := json.Marshal(section)
+		if err != nil {
+			return fmt.Errorf("encode section %s: %w", section.ID, err)
+		}
+		keys = append(keys, r.sectionPrefix+section.ID)
+		arguments = append(arguments, string(encodedSection))
+	}
+
+	if err := replacePageScript.Run(ctx, r.client, keys, arguments...).Err(); err != nil {
+		return fmt.Errorf("replace page %s: %w", page.ID, err)
+	}
+
+	return nil
+}
+
+func (r *Repository) SaveCrawlFailure(
+	ctx context.Context,
+	failure documents.CrawlFailure,
+) error {
+	if err := validateID("page", failure.PageID); err != nil {
+		return err
+	}
+
+	return r.saveJSON(ctx, r.crawlFailurePrefix+failure.PageID, failure)
 }
 
 func (r *Repository) SaveSection(ctx context.Context, section documents.Section) error {
@@ -61,7 +218,7 @@ func (r *Repository) SaveSection(ctx context.Context, section documents.Section)
 		return errors.New("section ID is required")
 	}
 
-	return r.saveJSON(ctx, SectionKeyPrefix+section.ID, section)
+	return r.saveJSON(ctx, r.sectionPrefix+section.ID, section)
 }
 
 func (r *Repository) Section(ctx context.Context, id string) (documents.Section, error) {
@@ -70,7 +227,7 @@ func (r *Repository) Section(ctx context.Context, id string) (documents.Section,
 	}
 
 	var section documents.Section
-	if err := r.loadJSON(ctx, SectionKeyPrefix+id, &section); err != nil {
+	if err := r.loadJSON(ctx, r.sectionPrefix+id, &section); err != nil {
 		return documents.Section{}, err
 	}
 
@@ -82,7 +239,7 @@ func (r *Repository) DeleteSection(ctx context.Context, id string) error {
 		return err
 	}
 
-	return r.client.Del(ctx, SectionKeyPrefix+id).Err()
+	return r.client.Del(ctx, r.sectionPrefix+id).Err()
 }
 
 func validateID(documentType string, id string) error {

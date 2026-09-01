@@ -1,21 +1,22 @@
 # Go Search Engine
 
-A Go/Fiber search-engine project that crawls configured pages, parses their content, and serves ranked search results.
+A Go/Fiber search-engine project that indexes web pages as sections in Redis and serves lexical full-text search results.
 
 ## Current architecture
 
-- `internal/crawler` fetches configured URLs concurrently.
-- `internal/parser` extracts page titles and searchable content.
-- `internal/index` builds the current in-memory inverted index.
-- `internal/search` defines the versioned search contract and backend boundary.
-- `internal/storage/redis` provides Redis JSON repositories, health checks, and versioned Redis Search index management.
+- `cmd/indexer` runs the standalone crawl and indexing pipeline.
+- `internal/crawler` fetches configured URLs with bounded concurrency, retries, response limits, redirect limits, and per-host pacing.
+- `internal/parser` converts article/main/body content into deterministic heading-bounded sections.
+- `internal/ingest` atomically replaces successful page versions and records crawl failures separately.
+- `internal/search` defines the versioned lexical search contract and validates user queries.
+- `internal/storage/redis` stores page and section JSON documents and executes weighted Redis Search queries.
 - `internal/handlers` exposes search and health endpoints through Fiber.
 
-The in-memory backend remains active during the Redis migration. Redis is now required at API startup and is the persistence/search foundation for the next ingestion and lexical-search phases.
+Redis is the durable source of truth. Crawling and indexing are intentionally separate from API startup.
 
 ## Redis requirements
 
-Provision Redis outside this repository with Redis Search and JSON support. The API creates the `search_sections_v1` index and the `search_sections_current` alias if they do not already exist.
+Provision Redis outside this repository with Redis Search and JSON support. The indexer and API create the `search_sections_v1` index and the `search_sections_current` alias if they do not already exist.
 
 Configuration:
 
@@ -31,18 +32,27 @@ Configuration:
 | `REDIS_WRITE_TIMEOUT` | `3s` |
 | `REDIS_POOL_SIZE` | `10` |
 
-## Run
+## Index
+
+```bash
+go run ./cmd/indexer
+```
+
+The indexer crawls `internal/config/sites.go`, emits a JSON report, and exits non-zero when any URL fails. Successful page replacements remove stale sections; failed crawls preserve the last successful page and store a separate failure record.
+
+## Run the API
 
 ```bash
 go run ./cmd/api
 ```
 
-The API listens on port 3000.
+The API reads previously indexed sections from Redis and listens on port 3000. It does not crawl on startup.
 
 ## Endpoints
 
 ```text
 GET /search?q=iron+man&mode=lexical&limit=10&offset=0
+GET /search?q=%22infinity+stones%22&site=en.wikipedia.org&language=en
 GET /health/live
 GET /health/ready
 ```
@@ -55,7 +65,7 @@ The search contract is documented in `docs/search-contract.md`. The initial judg
 go test ./...
 ```
 
-Generate a relevance report for the current in-memory baseline:
+Generate the retained Phase 0 in-memory relevance baseline:
 
 ```bash
 go run ./cmd/relevance

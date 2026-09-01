@@ -24,13 +24,16 @@ const ModeLexical Mode = "lexical"
 var (
 	ErrUnsupportedMode   = errors.New("unsupported search mode")
 	ErrInvalidPagination = errors.New("invalid search pagination")
+	ErrInvalidQuery      = errors.New("invalid search query")
 )
 
 type Request struct {
-	Query  string
-	Mode   Mode
-	Limit  int
-	Offset int
+	Query    string
+	Mode     Mode
+	Limit    int
+	Offset   int
+	Site     string
+	Language string
 }
 
 type Response struct {
@@ -68,6 +71,16 @@ func (s *Service) Search(ctx context.Context, request Request) (Response, error)
 	}
 	if request.Mode != ModeLexical {
 		return Response{}, ErrUnsupportedMode
+	}
+	if request.Query == "" {
+		return Response{}, ErrInvalidQuery
+	}
+	if _, err := CompileLexicalQuery(
+		request.Query,
+		request.Site,
+		request.Language,
+	); err != nil {
+		return Response{}, err
 	}
 	if request.Limit == 0 {
 		request.Limit = DefaultLimit
